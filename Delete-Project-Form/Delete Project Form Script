@@ -1,0 +1,374 @@
+function onDeleteSubmit(e) {
+  //Wait for 3 seconds to make sure the response has been processed before we try to access it
+  Utilities.sleep(3000);
+  
+  var deleteUnwantedProjectsForm = FormApp.getActiveForm();
+  var myResponses = deleteUnwantedProjectsForm.getResponses();
+  
+  var submitProjectsFormID = "1-i6iK2T_hD7ND06knw_J3sh7qjYciNzmefuLTc7AvTM";
+  var submitProjectsForm = FormApp.openById(submitProjectsFormID);
+   
+  var currentProjectsSpreadsheetID = "1T6QaKngOqfaxf6kyLDtSdCMeATiFGF5jxlsDwE5ABNw"
+  var currentProjectsSpreadsheet = SpreadsheetApp.openById(currentProjectsSpreadsheetID);
+  var currentProjectsSheet = currentProjectsSpreadsheet.getSheets()[0];
+  var dataRange = currentProjectsSpreadsheet.getDataRange();
+  var numProjects = dataRange.getHeight()-1;
+  var numParameters = dataRange.getWidth();
+  var spreadsheetNameIndex;
+  var responseItems;
+  for (var j=0;j<numParameters;j++){
+    if (currentProjectsSheet.getRange(1, j+1).getValue() == "Event/Project Name"){
+      spreadsheetNameIndex = j+1;
+      break;
+    }
+  }
+  //This for loop probably isn't necessary but just in case
+  for (var i=0;i<myResponses.length;i++){
+    //Get the name of the project that the user asked to delete
+    deleteThisProjectName = myResponses[i].getItemResponses()[0].getResponse();
+    
+    //Do a for loop through the current projects spreadsheet and delete the entry corresponding to the selected project
+    //selection is matched by name equality
+    for (var j=0;j<numProjects;j++){
+      if (currentProjectsSheet.getRange(j+2,spreadsheetNameIndex).getValue() == deleteThisProjectName){
+        currentProjectsSheet.getRange(j+2, 1, 1, numParameters).clearContent();
+        for (var n=j;n<numProjects;n++){
+          currentProjectsSheet.getRange(n+2, 1, 1, numParameters).setValues(currentProjectsSheet.getRange(n+3, 1,1,numParameters).getValues())      
+        }
+        j-=1;
+        numProjects -=1; 
+      }
+    }
+        
+  submitProjectsForm.deleteAllResponses();
+  deleteUnwantedProjectsForm.deleteAllResponses();
+  refreshForms();  
+  
+  }
+  
+}
+
+function refreshForms() {
+  // This function refreshes the form from which Circle K members can sign up for projects, so that it is always showing the relevant projects
+  // It also updates the project deletion form, where board members can delete bad projects. 
+  
+  // Sleep to make sure that the excel spreadsheet has been updated completely before we try to reference it.
+  Utilities.sleep(3000);
+  
+  //Signup Form for members to sign up for projects
+  var signupForm = FormApp.openById("1rnd_UjQCiSZt44jTQWdAfREx3sYgig2joyhQfbVssDs");
+  var signupFormItems = signupForm.getItems();
+  
+  //Delete Form for board members to delete unwanted projects
+  var deletionForm = FormApp.openById("1Ux_hxW6lqa12cFYMXK54ojVrrhP-HfU_b6lBzXRYbJo");
+  var deletionFormItems = deletionForm.getItems();
+  if (deletionFormItems.length > 0){
+    deletionForm.deleteItem(0);
+  }
+  //For loop deletes all items except the default first two (Name and Email)
+  for (var m=0;m<signupFormItems.length-2;m++){
+    signupForm.deleteItem(signupFormItems[m+2]); 
+  }
+  
+  //Get access to the custom spreadsheet handled by the submit a project form, and take
+  // a look at which projects are coming up.
+  var currentProjectsSpreadsheet = SpreadsheetApp.openById("1T6QaKngOqfaxf6kyLDtSdCMeATiFGF5jxlsDwE5ABNw");
+  var currentProjectsSheet = currentProjectsSpreadsheet.getSheets()[0];
+  var dataRange = currentProjectsSheet.getDataRange();
+  
+  var numProjects = dataRange.getHeight()-1; 
+  var numParameters = dataRange.getWidth();
+   
+  //These are the parameters we want to collect for each project
+  var projectName;
+  var projectLocation
+  var projectChair;
+  var projectChairEmail;
+  var projectSignupStartTime;
+  var projectStartTime;
+  var projectEndTime;
+  var askNeedRide;
+  var startDate;
+  var endDate;
+  
+  var numShifts;
+  var shiftStartTime = [];
+  var shiftEndTime = [];
+  
+  // This is the question handle
+  var myItem;
+ 
+  // Some variables for the for-loop
+  var itemTitles = [];
+  var j;
+  
+  //For loop finds key values of each project
+  for (var j=0;j<numParameters;j++){
+    itemTitles.push(currentProjectsSheet.getRange(1, j+1).getValue());
+  }
+  
+  for (var i=0;i<numProjects;i++){
+    
+    shiftStartTime = [];
+    shiftEndTime = [];
+  
+    projectTitles = [];
+    
+    j = itemTitles.indexOf("Event/Project Name");
+    projectName = currentProjectsSheet.getRange(i+2, j+1).getValue(); 
+    
+    j = itemTitles.indexOf("Project Location");
+    projectLocation = currentProjectsSheet.getRange(i+2, j+1).getValue();
+    
+    j = itemTitles.indexOf("Project Chairperson");
+    projectChair = currentProjectsSheet.getRange(i+2, j+1).getValue();
+    
+    j = itemTitles.indexOf("Project Chairperson Email Address");
+    projectChairEmail = currentProjectsSheet.getRange(i+2, j+1).getValue();
+    
+    j = itemTitles.indexOf("Number of Shifts");
+    numShifts = parseInt(currentProjectsSheet.getRange(i+2, j+1).getValue());
+    
+    j = itemTitles.indexOf("Signup Start Date");
+    projectSignupStartTime = (currentProjectsSheet.getRange(i+2,j+1).getValue().getTime());
+    
+    j = itemTitles.indexOf("Project Start Date/Time");
+    projectStartTime = (currentProjectsSheet.getRange(i+2,j+1).getValue());
+    
+    j = itemTitles.indexOf("Project End Date/Time");
+    projectEndTime = (currentProjectsSheet.getRange(i+2,j+1).getValue());
+    
+    if (numShifts == 1){
+      j = itemTitles.indexOf("Project Start Date/Time")
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+1).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+2).getValue());
+    }    
+    else if (numShifts == 2){
+      j = itemTitles.indexOf("Shift 1 of 2 Start Time");
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+1).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+2).getValue());
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+3).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+4).getValue());
+    }
+    else if (numShifts == 3){
+      j = itemTitles.indexOf("Shift 1 of 3 Start Time");
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+1).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+2).getValue());
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+3).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+4).getValue());
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+5).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+6).getValue());
+    }
+    else if (numShifts == 4){
+      j = itemTitles.indexOf("Shift 1 of 4 Start Time");
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+1).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+2).getValue());
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+3).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+4).getValue());
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+5).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+6).getValue());
+      shiftStartTime.push(currentProjectsSheet.getRange(i+2, j+7).getValue());
+      shiftEndTime.push(currentProjectsSheet.getRange(i+2, j+8).getValue());
+    }
+    else{
+      Logger.log("Number of Shifts Error");
+    }
+    
+   
+    j = itemTitles.indexOf("Ask If they Need a Ride?");
+    if (currentProjectsSheet.getRange(i+2, j+1).getValue() == "Yes"){
+      askNeedRide = true;
+    }
+    else{ 
+      askNeedRide = false;
+    }   
+    
+    //If statement: If we are within 15 mins of the project start time, then go ahead and start signups
+    var now = new Date();
+    if ((projectSignupStartTime - now.getTime()) < (1000*60*15)){
+    
+      // For loop: Create one signup entry for every shift
+      for (var n=0;n<numShifts;n++){
+        myItem = signupForm.addCheckboxItem();
+        //Set title. If there are multiple shifts, mention which shift it is.
+        if (numShifts == 1){
+          var myTitle = projectName + "     -     " + DatetoWords(shiftStartTime[0], shiftEndTime[0]);
+        }
+        else {
+          var myTitle = projectName + "Shift " + n.toString() + "     -     " + DatetoWords(shiftStartTime[n],ShiftEndTime[n]);
+        }
+        myItem.setTitle(myTitle);
+        
+        projectTitles.push(projectName);
+        
+        //Set Choices
+        var choiceValues = ["I am attending"];
+        if (askNeedRide){
+          choiceValues.push("Need Ride");
+        }
+        myItem.setChoiceValues(choiceValues);
+        //Set help text
+        var myText = "Location: " + projectLocation + ". Chair: " + projectChair + ", " + projectChairEmail;
+        myItem.setHelpText(myText);
+        
+      }
+      
+    }
+  }
+  
+  var deletionFormItem = deletionForm.addListItem();
+  deletionFormItem.setTitle("Choose Project to Delete");
+  deletionFormItem.setHelpText("This project will be removed from the project signup form and all its connections disposed of properly");
+  deletionFormItem.setChoiceValues(projectTitles);
+  deletionFormItem.setRequired(true);
+  
+}
+
+function DatetoWords(startDate, endDate){
+  //DateString comes in the format "MM-DD-YYYY HH:MM:SS"
+  //Find integers corresponding to the start time
+  var MM = startDate.getMonth(); //0-11, January is 0!
+  var DD = startDate.getDate();
+  var YYYY = startDate.getFullYear();
+  var HH = startDate.getHours();//0-23
+  var MINS = startDate.getMinutes();//0-59
+  var hourSet = "AM";
+  var startDate = new Date(YYYY,MM,DD,HH,MINS,0,0);
+  
+  //Find integers corresponding to the end time
+  var MM2 = endDate.getMonth(); //0-11, January is 0!
+  var DD2 = endDate.getDate();
+  var YYYY2 = endDate.getFullYear();
+  var HH2 = endDate.getHours();//0-23
+  var MINS2 = endDate.getMinutes();//0-59
+  var hourSet2 = "AM";
+  var endDate = new Date(YYYY2,MM2,DD2,HH2,MINS2,0,0);
+  
+  //Determine the words corresponding to the integers given to us for the month, day
+  var monthWord = getMonthFromInt(parseInt(MM-1));
+  var dayWord = getDayFromInt(startDate.getDay());
+  var monthWord2 = getMonthFromInt(parseInt(MM2-1));
+  var dayWord2 = getDayFromInt(endDate.getDay());
+  
+  //Check for am vs pm
+  if (HH > 12){
+    hourSet = "PM";
+    HH -= 12; 
+  }
+  HH = HH.toString()
+  if (HH2 > 12){
+    hourSet2 = "PM";
+    HH2 -= 12; 
+  }
+  HH2 = HH2.toString();
+  
+  //Recast Minutes to have leading '0' if necessary
+  if (MINS < 10){
+    MINS = "0" + MINS.toString();
+  }
+  else{
+    MINS = MINS.toString();
+  }
+  if (MINS2 < 10){
+    MINS2 = "0"+MINS2.toString();
+  }
+  else {
+    MINS2.toString();
+  }
+
+  //Now that everything has been examined, cast it all to string type
+  YYYY = YYYY.toString();
+  YYYY2= YYYY2.toString();
+  MM = MM.toString();
+  MM2 = MM2.toString();
+  DD = DD.toString();
+  DD2 = DD2.toString();
+
+  var Words = "Error: Date not Parsed Correctly";
+  if ((YYYY==YYYY2) && (DD==DD2) && (MM==MM2)){
+    Words = dayWord + ", " + monthWord + " " + DD + ", " + YYYY + " ";
+    Words += HH + ":" + MINS + " " + hourSet + " - " + HH2 + ":" + MINS2 + " " + hourSet2;  
+  }
+  else{
+    Words = dayWord + ", " + monthWord + " " + DD + ", " + YYYY + " " + HH+":"+MINS + " " + hourSet;
+    Words += dayWord2 + ", " + monthWord2 + " " + DD2 + ", " + YYYY2 + " " + HH2+":"+MINS2 + " " + hourSet2;
+  }
+      
+  return Words;  
+  
+}
+ 
+function getMonthFromInt(monthInt){
+ var monthWord = "Error Parsing Month";
+  
+  switch (monthInt){
+    case 0:
+      monthWord = "January";
+      break;
+    case 1:
+      monthWord = "February";
+      break;
+    case 2:
+      monthWord = "March";
+      break;
+    case 3:
+      monthWord = "April";
+      break;
+    case 4:
+      monthWord = "May";
+      break;
+    case 5:
+      monthWord = "June";
+      break;
+    case 6:
+      monthWord = "July";
+      break;
+    case 7:
+      monthWord = "August";
+      break;
+    case 8:
+      monthWord = "September";
+      break;
+    case 9:
+      monthWord = "October";
+      break;
+    case 10:
+      monthWord = "November";
+      break;
+    case 11:
+      monthWord = "December";
+      break;
+  }
+  return monthWord;
+  
+}
+
+function getDayFromInt(dayInt){
+   
+  var dayWord = "Error Parsing Day of the Week";
+  
+  switch (dayInt){
+    case 0:
+      dayWord = "Monday";
+      break;
+    case 1:
+      dayWord = "Tuesday";
+      break;
+    case 2:
+      dayWord = "Wednesday";
+      break;
+    case 3:
+      dayWord = "Thursday";
+      break;
+    case 4:
+      dayWord = "Friday";
+      break;
+    case 5:
+      dayWord = "Saturday";
+      break;
+    case 6:
+      dayWord = "Sunday";
+      break;
+  }
+  return dayWord;
+}
