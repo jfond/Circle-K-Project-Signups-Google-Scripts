@@ -1,0 +1,362 @@
+function checkProjectSignupResponses(e){
+  
+  var projectSignupForm = FormApp.openById("1rnd_UjQCiSZt44jTQWdAfREx3sYgig2joyhQfbVssDs");
+  var formItems = projectSignupForm.getItems(FormApp.ItemType.SECTION_HEADER);
+ 
+  //The submission we want is the one that was just submitted (last entry as submitted most recently)
+  var formResponses = projectSignupForm.getResponses();
+  projectSignupForm.deleteAllResponses(); 
+
+  //So, there is a chance that a person could open the current projects signup form,
+  //then not submit a response with it for like 5 days.
+  //In this case, the project clearly would no longer be available to be signed up for
+  //So we have to check to make sure that the project signups for that project are still active
+  //And if they are not, tell the user that.
+  //This functionality will be done in the for loop under the function call: checkValid() 
+  
+  //Make the signup Time when the responses were first checked.
+  var now = new Date();
+  
+  for (var n=0;n<formResponses.length;n++){
+    
+    // Get an array of the responses to each item
+    var itemResponses = formResponses[n].getItemResponses();
+    
+    var memberName;
+    var memberEmail;
+    var projectName;
+    var attending;
+    var needsRide;
+    
+    var signupSheet;
+    var projectList = []; //Array holding the list of the names that they signed up for so we can email it to them.
+    
+    for (var i=0;i<itemResponses.length;i++){
+      
+      if (itemResponses[i].getItem().getTitle() == "First and Last Name"){
+        memberName = itemResponses[i].getResponse();
+      }
+      else if (itemResponses[i].getItem().getTitle() == "Email Address"){
+        memberEmail = itemResponses[i].getResponse(); 
+      }
+      else if (itemResponses[i].getItem().getType() == FormApp.ItemType.CHECKBOX) {
+        var headerIndex = (itemResponses[i].getItem().getIndex()-3)/2;
+        Logger.log("i: " + i);
+        Logger.log("FormItems Length: " + formItems.length);
+        var locationLineEndIndex = formItems[headerIndex].getHelpText().indexOf("\n");
+        projectName = formItems[headerIndex].getTitle() + " - " + formItems[headerIndex].getHelpText().substr(0, locationLineEndIndex);
+        Logger.log("projectName: " + projectName);
+        
+        attending = itemResponses[i].getResponse().toString().contains("Attending");
+        needsRide = itemResponses[i].getResponse().toString().contains("Need Ride");
+        if (attending){
+          if (checkValid(projectName)){
+            signupSheet = getSignupSheet(projectName);
+            
+            //I have been having issues where multiple people signing up at the same time will sometimes cause one entry to be looked over. So, I doing a loop which checks for this. 
+            var entryNotAccepted = true;
+            while (entryNotAccepted){
+              var numEntries = signupSheet.getDataRange().getHeight();
+              signupSheet.getRange(numEntries+1,1,1,3).setValues([[memberName, memberEmail, now]]);
+              if (needsRide){
+                signupSheet.getRange(numEntries+1,4).setValue("Yes");
+              }
+              else if (signupSheet.getRange(1,4).getValue() == "Need Ride") {
+                signupSheet.getRange(numEntries+1,4).setValue("No");
+              }
+              Utilities.sleep(5000);
+              //If the entry was added correctly, then exit the loop, otherwise, keep trying.            
+              if ((signupSheet.getRange(numEntries+1,1).getValue() == memberName)  &&
+                  (signupSheet.getRange(numEntries+1,2).getValue() == memberEmail) &&
+                (signupSheet.getRange(numEntries+1,3).getValue().getTime() == now.getTime())){
+                  Logger.log("Falsifying...");    
+                  entryNotAccepted = false;                             
+                } 
+            }
+            
+            projectList.push(projectName);       
+          }
+          else {
+            var MessageHTML = "Dear " + memberName + ",<br><br>";
+            MessageHTML += "Unfortunately, the signup period for the project " + projectName + " has closed, so you have not been signed up for this project."
+            MessageHTML += "<br>Sorry for the inconvenience."
+            MessageHTML += "<br><br>Circle K Project Signups Bot";
+            GmailApp.sendEmail(memberEmail, "Error Signing up for project: " + projectName, "", {htmlBody: MessageHTML}); 
+          }
+          
+        }
+        
+      }
+      
+    }
+    if (projectList.length > 0){
+      var ThanksHTML = "Dear " + memberName + ",<br><br>";
+      ThanksHTML += "Thank you for choosing to participate in Circle K projects. For your records, here is a list of the projects that you have chosen to sign up for."
+      ThanksHTML += "<br><br>"
+      for (var p=0;p<projectList.length;p++){
+        ThanksHTML += projectList[p] + "<br>";
+      }
+      ThanksHTML += "<br><br>UA Circle K Project Signups Bot";
+      GmailApp.sendEmail(memberEmail, "Circle K Project Signups", "", {htmlBody: ThanksHTML})
+    }
+  }
+
+
+}
+
+String.prototype.contains = function(it) { return this.indexOf(it) != -1; };
+
+function getSignupSheet(projectName){
+  //This project name should be guaranteed to match the name of one of the SHEETS (not spreadsheets) that exists on the drive
+  //So we open every current spreadsheet, and sort through each sheet. If the sheet name matches this filename, then we return that.
+  
+  var potentialFiles = DriveApp.getFilesByType("application/vnd.google-apps.spreadsheet");
+  var myFile;
+  var mySpreadsheet;
+  var mySheets;
+  
+  Logger.log(potentialFiles.hasNext());
+  while (potentialFiles.hasNext()){
+    myFile = potentialFiles.next();
+    mySpreadsheet = SpreadsheetApp.open(myFile);
+    mySheets = mySpreadsheet.getSheets();
+    for (var i=0;i<mySheets.length;i++){
+      Logger.log("spreadsheet Name: " + mySheets[i].getName());
+      Logger.log("projectName: " + projectName);
+      if (mySheets[i].getName() == projectName){
+        return mySheets[i];  
+      }
+    }
+    
+  }
+  Logger.log("Signup Form: Function getSignupSheet: Spreadsheet not found");
+  return null;
+  
+  
+}
+
+function checkValid(projectName) {
+  var currentProjectsSheet = SpreadsheetApp.openById("1T6QaKngOqfaxf6kyLDtSdCMeATiFGF5jxlsDwE5ABNw").getSheets()[0]; 
+  var dataRange = currentProjectsSheet.getDataRange();
+  var numProjects = dataRange.getHeight()-1;
+  var numParameters = dataRange.getWidth();
+  
+  var nameIndex;
+  var numShiftsIndex;
+  var shift1StartIndex;
+  var projectStartIndex;
+  for (var i=0;i<numParameters;i++){
+    if (currentProjectsSheet.getRange(1, i+1).getValue() == "Event/Project Name"){
+       nameIndex = i+1;  
+    }
+    else if (currentProjectsSheet.getRange(1, i+1).getValue() == "Number of Shifts"){
+       numShiftsIndex = i+1;  
+    }
+    else if (currentProjectsSheet.getRange(1, i+1).getValue() == "Shift 1 of 2 Start Time"){
+       shift1StartIndex = i+1;  
+    }
+    else if (currentProjectsSheet.getRange(1, i+1).getValue() == "Project Start Date/Time"){
+      projectStartIndex = i+1;
+    }
+  }
+  
+  //Below we do the following:
+  //Loop through every project in the spreadsheet, if there is one with that name, return true
+  //If not, the loop will run through entirely, and this function will return false.
+  //Unfortunately, we dont have only the name to deal with, we have the entire string: name form date to date.
+  //Since each project is uniquely identified by both the name and the time. 
+  
+  //So we have to make a tighter condition by matching the shift times and everything. 
+  
+  
+  //Loop through all of the projects in the list. If that project has 2+ shifts, then its name will be dictated by the shift bound times. If it only
+  //has one shift then its name will be dictated by the project start and end times.
+  var shiftStartDate;
+  var shiftEndDate;
+  var thisProjectName;
+  var numShifts;
+  var checkName; // Array holding the list of possible names that this project could go under.
+  for (var j=0;j<numProjects;j++){
+    numShifts = parseInt(currentProjectsSheet.getRange(j+2, numShiftsIndex).getValue(), 10);
+    thisProjectName = currentProjectsSheet.getRange(j+2, nameIndex).getValue()
+    
+    if (numShifts > 1){
+      //WE found the index for shift 1 of 2 start index. Now if there are 3 or 4 shifts, this offset will
+      //give the index of shift 1 of 3, or shift 1 of 4.
+      var offset;
+      if (numShifts == 2) { offset = 0;}
+      else if (numShifts == 3) { offset = 4;}
+      else if (numShifts == 4) { offset = 10;}
+      
+      for (var n=0; n<numShifts;n++){
+        shiftStartDate = currentProjectsSheet.getRange(j+2, shift1StartIndex+(2*n)+offset).getValue();
+        shiftEndDate   = currentProjectsSheet.getRange(j+2, shift1StartIndex+(2*n)+1+offset).getValue();
+        checkName = thisProjectName + " - " + DatetoWords(shiftStartDate,shiftEndDate)+ " - Shift " + (n+1).toString();
+        if (checkName == projectName){
+          return true;
+        }
+      }
+    }
+    else {
+      shiftStartDate = currentProjectsSheet.getRange(j+2, projectStartIndex).getValue();
+      shiftEndDate = currentProjectsSheet.getRange(j+2, projectStartIndex+1).getValue();
+      checkName = thisProjectName + " - " + DatetoWords(shiftStartDate, shiftEndDate);
+      if (checkName == projectName){
+        return true;
+      }
+    }
+  }
+  return false;
+ 
+}
+
+  
+function DatetoWords(startDate, endDate){
+  //DateString comes in the format "MM-DD-YYYY HH:MM:SS"
+  //Find integers corresponding to the start time
+  var MM = startDate.getMonth(); //0-11, January is 0!
+  var DD = startDate.getDate();
+  var YYYY = startDate.getFullYear();
+  var HH = startDate.getHours();//0-23
+  var MINS = startDate.getMinutes();//0-59
+  var hourSet = "AM";
+  var startDate = new Date(YYYY,MM,DD,HH,MINS,0,0);
+  
+  //Find integers corresponding to the end time
+  var MM2 = endDate.getMonth(); //0-11, January is 0!
+  var DD2 = endDate.getDate();
+  var YYYY2 = endDate.getFullYear();
+  var HH2 = endDate.getHours();//0-23
+  var MINS2 = endDate.getMinutes();//0-59
+  var hourSet2 = "AM";
+  var endDate = new Date(YYYY2,MM2,DD2,HH2,MINS2,0,0);
+  
+  //Determine the words corresponding to the integers given to us for the month, day
+  var monthWord = getMonthFromInt(parseInt(MM), 10);
+  var dayWord = getDayFromInt(startDate.getDay());
+  var monthWord2 = getMonthFromInt(parseInt(MM2), 10);
+  var dayWord2 = getDayFromInt(endDate.getDay());
+  
+  //Check for am vs pm
+  if (HH > 12){
+    hourSet = "PM";
+    HH -= 12; 
+  }
+  HH = HH.toString()
+  if (HH2 > 12){
+    hourSet2 = "PM";
+    HH2 -= 12; 
+  }
+  HH2 = HH2.toString();
+  
+  //Recast Minutes to have leading '0' if necessary
+  if (MINS < 10){
+    MINS = "0" + MINS.toString();
+  }
+  else{
+    MINS = MINS.toString();
+  }
+  if (MINS2 < 10){
+    MINS2 = "0"+MINS2.toString();
+  }
+  else {
+    MINS2.toString();
+  }
+
+  //Now that everything has been examined, cast it all to string type
+  YYYY = YYYY.toString();
+  YYYY2= YYYY2.toString();
+  MM = MM.toString();
+  MM2 = MM2.toString();
+  DD = DD.toString();
+  DD2 = DD2.toString();
+
+  var Words = "Error: Date not Parsed Correctly";
+  if ((YYYY==YYYY2) && (DD==DD2) && (MM==MM2)){
+    Words = dayWord + ", " + monthWord + " " + DD + ", " + YYYY + " ";
+    Words += HH + ":" + MINS + " " + hourSet + " - " + HH2 + ":" + MINS2 + " " + hourSet2;  
+  }
+  else{
+    Words = dayWord + ", " + monthWord + " " + DD + ", " + YYYY + " " + HH+":"+MINS + " " + hourSet + " - ";
+    Words += dayWord2 + ", " + monthWord2 + " " + DD2 + ", " + YYYY2 + " " + HH2+":"+MINS2 + " " + hourSet2;
+  }
+      
+  return Words;  
+  
+}
+ 
+function getMonthFromInt(monthInt){
+ var monthWord = "Error Parsing Month";
+  
+  switch (monthInt){
+    case 0:
+      monthWord = "January";
+      break;
+    case 1:
+      monthWord = "February";
+      break;
+    case 2:
+      monthWord = "March";
+      break;
+    case 3:
+      monthWord = "April";
+      break;
+    case 4:
+      monthWord = "May";
+      break;
+    case 5:
+      monthWord = "June";
+      break;
+    case 6:
+      monthWord = "July";
+      break;
+    case 7:
+      monthWord = "August";
+      break;
+    case 8:
+      monthWord = "September";
+      break;
+    case 9:
+      monthWord = "October";
+      break;
+    case 10:
+      monthWord = "November";
+      break;
+    case 11:
+      monthWord = "December";
+      break;
+  }
+  return monthWord;
+  
+}
+
+function getDayFromInt(dayInt){
+   
+  var dayWord = "Error Parsing Day of the Week";
+  
+  switch (dayInt){
+    case 0:
+      dayWord = "Sunday";
+      break;
+    case 1:
+      dayWord = "Monday";
+      break;
+    case 2:
+      dayWord = "Tuesday";
+      break;
+    case 3:
+      dayWord = "Wednesday";
+      break;
+    case 4:
+      dayWord = "Thursday";
+      break;
+    case 5:
+      dayWord = "Friday";
+      break;
+    case 6:
+      dayWord = "Saturday";
+      break;
+  }
+  return dayWord;
+}
+
