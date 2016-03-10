@@ -1,0 +1,305 @@
+function checkforExpiredSocials() {
+  //Open the "Projects with unsubmitted service hours spreadsheet. That is where this will be located
+  var mySpreadSheet = SpreadsheetApp.openById("1tcEum8LBGMEmhxt9ku7-KSSnggTxvWbJwNlTNT3zEok");
+  var mySheet = mySpreadSheet.getSheets()[0];
+  
+  var numProjects = mySheet.getDataRange().getHeight()-1; //One of the rows is used for titles of each paramter name
+  if (numProjects <= 0){
+    //If there are no projects to check, let us not waste time and energy doing all the computations
+    return null; 
+  }
+  
+  var numParameters = mySheet.getDataRange().getWidth();
+  
+  var eventTypeIndex;
+  var eventStartDateIndex;
+  var eventEndDateIndex;
+  var eventNameIndex;
+  
+  
+  
+  var temp;
+  //Do a for loop to find the index of "Type of Event" and the event end time
+  for (var i=0;i<numParameters;i++){
+    temp = mySheet.getRange(1, i+1).getValue()
+    if (temp == "Type of Event"){
+      eventTypeIndex = i+1;
+    }
+    else if (temp == "Project Start Date/Time"){
+      eventStartDateIndex = i+1;
+    }
+    else if (temp == "Project End Date/Time"){
+      eventEndDateIndex = i+1;
+    }
+    else if (temp == "Event/Project Name"){
+      eventNameIndex = i+1; 
+    }
+  }
+  
+  var temptime;
+  var now = new Date();
+  
+  var eventName;
+  var eventStartDate;
+  var eventEndDate;
+  var fileTitle;
+  
+  var rosterSheetFile;
+  
+  //Do a for loop through all of the current projects 
+  for (var j=0;j<numProjects;j++){
+    //If it is a social, check if it is 24 hours past its scheduled end time. If it is, delete the roster sheet.
+    if (mySheet.getRange(j+2, eventTypeIndex).getValue() == "Social Event"){
+      temptime = mySheet.getRange(j+2, eventEndDateIndex).getValue().getTime();
+      //If its been 24 hours since the end time, remove it and update the spreadsheet.
+      if (now.getTime() + (1000*60*60*24) > temptime){
+        eventName = mySheet.getRange(j+2, eventNameIndex).getValue();
+        eventStartDate = mySheet.getRange(j+2, eventStartDateIndex).getValue();
+        eventEndDate = mySheet.getRange(j+2, eventEndDateIndex).getValue();
+        fileTitle = eventName + " - " + DatetoWords(eventStartDate, eventEndDate);
+        Logger.log(fileTitle);
+        Logger.log("Event Name: " + eventName);
+        Logger.log("Start: " + eventStartDate);
+        Logger.log("End: " + eventEndDate);
+        rosterSheetFile = getRosterSpreadSheetFile(fileTitle);
+        rosterSheetFile.setTrashed(true);
+        var diffHeight = mySheet.getDataRange().getHeight() - (j-1);
+        Logger.log(diffHeight);
+        mySheet.getRange(j+2, 1, diffHeight, numParameters).setValues(mySheet.getRange(j+3, 1, diffHeight, numParameters).getValues());
+      }
+    }    
+  }
+}
+
+
+function getDateObjectFromString(DateString){
+  //DateString comes in the format "YYYY-MM-DD HH:MM" 
+  //When the function parseInt sees the "0" in front of the string it interprets it as an octal integer (base 8), which causes problems for the values 08 and 09.
+  //To solve this, we pass a second argument to it specifying the standard base 10 system. 
+  Logger.log("getDateObjectFromString: " + DateString);
+  var YYYY = parseInt(DateString.substr(0,4), 10);
+  var MM = parseInt(DateString.substr(5,2), 10)-1; //0-11;
+  var DD = parseInt(DateString.substr(8,2), 10);
+  var HH = parseInt(DateString.substr(11,2), 10);
+  var MINS = parseInt(DateString.substr(14,2), 10);
+  
+  Logger.log("Day Substring: " + DateString.substr(8,2));
+  Logger.log("Year: " + YYYY);
+    Logger.log("Month: " + MM);
+    Logger.log("Day: " + DD);
+    Logger.log("Hour: " + HH);
+    Logger.log("Minutes: " + MINS);
+  var myDate = new Date(YYYY, MM, DD, HH, MINS, 0, 0);
+  Logger.log("DateTime: " + myDate.getTime());
+  return myDate;
+}
+
+function ConvertDateToString(date){
+    //Format for the date is: "YYYY-MM-DD-YYYY HH:MM" when working in google forms
+    //Unfortunately formatting the date properly takes several lines of code
+  Logger.log("Convert Date to String: " + date);
+  var DD = date.getDate();
+  var MM = date.getMonth()+1; //January is 0!
+  var YYYY = date.getFullYear();
+  var HH = date.getHours(); //0-23
+  var MINS = date.getMinutes(); //0-59
+  var SECS = date.getSeconds(); //0-59
+  
+  if(DD<10) {
+    //Convert months 1-9 to 01-09.
+    DD='0'+DD;
+  } 
+  
+  if(MM<10) {
+    //Convert days 1-9 to 01-09.
+    MM='0'+MM; 
+  } 
+  
+  if (MINS<10){
+    //Convert Mins 1-9 to 01-09
+    MINS = '0'+MINS;
+  }
+
+  var nowDate = YYYY+"-"+MM+"-"+DD+" "+HH+":"+MINS;
+  return nowDate;
+}
+
+function DatetoWords(startDate, endDate){
+ //This function expects Javascript Date objects as its arguments. 
+  
+  var MM = startDate.getMonth(); //0-11, January is 0!
+  var DD = startDate.getDate();
+  var YYYY = startDate.getFullYear();
+  var HH = startDate.getHours();//0-23
+  var MINS = startDate.getMinutes();//0-59
+  var hourSet = "AM";
+  var startDate = new Date(YYYY,MM,DD,HH,MINS,0,0);
+  
+  //Find integers corresponding to the end time
+  var MM2 = endDate.getMonth(); //0-11, January is 0!
+  var DD2 = endDate.getDate();
+  var YYYY2 = endDate.getFullYear();
+  var HH2 = endDate.getHours();//0-23
+  var MINS2 = endDate.getMinutes();//0-59
+  var hourSet2 = "AM";
+  var endDate = new Date(YYYY2,MM2,DD2,HH2,MINS2,0,0);
+  
+  //Determine the words corresponding to the integers given to us for the month, day
+  var monthWord = getMonthFromInt(parseInt(MM), 10);
+  var dayWord = getDayFromInt(startDate.getDay());
+  var monthWord2 = getMonthFromInt(parseInt(MM2), 10);
+  var dayWord2 = getDayFromInt(endDate.getDay());
+  
+  //Check for am vs pm
+  if (HH > 11){
+    hourSet = "PM";
+    HH -= 12; 
+  }
+  if (HH == 0){
+    HH = 12; 
+  }
+  HH = HH.toString()
+  if (HH2 > 11){
+    hourSet2 = "PM";
+    HH2 -= 12; 
+  }
+  if (HH2 == 0){
+    HH2 = 12; 
+  }
+  HH2 = HH2.toString();
+  
+  //Recast Minutes to have leading '0' if necessary
+  if (MINS < 10){
+    MINS = "0" + MINS.toString();
+  }
+  else{
+    MINS = MINS.toString();
+  }
+  if (MINS2 < 10){
+    MINS2 = "0"+MINS2.toString();
+  }
+  else {
+    MINS2.toString();
+  }
+
+  //Now that everything has been examined, cast it all to string type
+  YYYY = YYYY.toString();
+  YYYY2= YYYY2.toString();
+  MM = MM.toString();
+  MM2 = MM2.toString();
+  DD = DD.toString();
+  DD2 = DD2.toString();
+
+  var Words = "Error: Date not Parsed Correctly";
+  if ((YYYY==YYYY2) && (DD==DD2) && (MM==MM2)){
+    Words = dayWord + ", " + monthWord + " " + DD + ", " + YYYY + " ";
+    Words += HH + ":" + MINS + " " + hourSet + " - " + HH2 + ":" + MINS2 + " " + hourSet2;  
+  }
+  else{
+    Words = dayWord + ", " + monthWord + " " + DD + ", " + YYYY + " " + HH+":"+MINS + " " + hourSet + " - ";
+    Words += dayWord2 + ", " + monthWord2 + " " + DD2 + ", " + YYYY2 + " " + HH2+":"+MINS2 + " " + hourSet2;
+  }
+      
+  return Words;  
+  
+}
+ 
+function getMonthFromInt(monthInt){
+ var monthWord = "Error Parsing Month";
+  
+  switch (monthInt){
+    case 0:
+      monthWord = "January";
+      break;
+    case 1:
+      monthWord = "February";
+      break;
+    case 2:
+      monthWord = "March";
+      break;
+    case 3:
+      monthWord = "April";
+      break;
+    case 4:
+      monthWord = "May";
+      break;
+    case 5:
+      monthWord = "June";
+      break;
+    case 6:
+      monthWord = "July";
+      break;
+    case 7:
+      monthWord = "August";
+      break;
+    case 8:
+      monthWord = "September";
+      break;
+    case 9:
+      monthWord = "October";
+      break;
+    case 10:
+      monthWord = "November";
+      break;
+    case 11:
+      monthWord = "December";
+      break;
+  }
+  return monthWord;
+  
+}
+
+function getDayFromInt(dayInt){
+   
+  var dayWord = "Error Parsing Day of the Week";
+  
+  switch (dayInt){
+    case 0:
+      dayWord = "Sunday";
+      break;
+    case 1:
+      dayWord = "Monday";
+      break;
+    case 2:
+      dayWord = "Tuesday";
+      break;
+    case 3:
+      dayWord = "Wednesday";
+      break;
+    case 4:
+      dayWord = "Thursday";
+      break;
+    case 5:
+      dayWord = "Friday";
+      break;
+    case 6:
+      dayWord = "Saturday";
+      break;
+  }
+  return dayWord;
+}
+
+function getRosterSpreadSheetFile(sheetName){
+  //Sheetname includes not only the event name, but also the date, as shown in all of the event roster spreadsheets.
+  
+  var potentialFiles = DriveApp.getFilesByName(sheetName);
+  var myFile;
+  var mySpreadsheet;
+  var mySheets;
+  
+  //If there is no spreadsheet with that name found:
+  if (!(potentialFiles.hasNext())){
+     Logger.log("ERROR: Problem retrieving spreadsheet for " + sheetName);
+     return null;
+  }
+  else {
+    myFile = potentialFiles.next();
+    if (potentialFiles.hasNext()){
+      Logger.log("ERROR: Multiple Instances of spreadsheet: " + sheetName + " have been found. returning the first instance found");
+    }
+    return myFile;
+  }
+  
+  return null;
+  
+}
