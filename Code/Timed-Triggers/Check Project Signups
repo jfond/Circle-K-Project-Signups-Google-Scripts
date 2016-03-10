@@ -1,23 +1,37 @@
-function checkProjectSignupResponses(e){
+function checkProjectSignupResponses(){
+  
   
   var projectSignupForm = FormApp.openById("1rnd_UjQCiSZt44jTQWdAfREx3sYgig2joyhQfbVssDs");
-  var formItems = projectSignupForm.getItems(FormApp.ItemType.SECTION_HEADER);
+  var allFormItems = projectSignupForm.getItems()
  
   //The submission we want is the one that was just submitted (last entry as submitted most recently)
-  var formResponses = projectSignupForm.getResponses();
-  projectSignupForm.deleteAllResponses(); 
-
+  //Get the index of the highest resopnse that has been handled so far. NOTE: for this variable, we label the indices as 1,2,3,4,5,....
+  var formResponsesNumber = SpreadsheetApp.openById("12RLuJRu-uQ0IOGkZYJUC9PrD1Jza2WVVgqKhh94wbOY").getSheets()[0].getRange(1, 1).getValue(); //Yeah its hard coded/magic numbers, blah blah.. GET OVER IT
+  Logger.log("Checking Project Signup Responses...");
+  var formResponses = projectSignupForm.getResponses(); //Grab all of the responses since this timestamp.
+  var NUM_RESPONSES_PER_RUN = 5;
+  if ((formResponses.length) > formResponsesNumber){
+    var maxIndex = Math.min((formResponses.length), formResponsesNumber+ NUM_RESPONSES_PER_RUN);
+    SpreadsheetApp.openById("12RLuJRu-uQ0IOGkZYJUC9PrD1Jza2WVVgqKhh94wbOY").getSheets()[0].getRange(1, 1).setValue(maxIndex);
+  }
+  //Make the signup Time when the responses were first checked.
+  var now = new Date();
+  Logger.log("Now: " + now.getHours());
+  if ((now.getHours() == 4) && (now.getMinutes() >14) && (now.getMinutes() < 17)){
+    projectSignupForm.deleteAllResponses();
+    SpreadsheetApp.openById("12RLuJRu-uQ0IOGkZYJUC9PrD1Jza2WVVgqKhh94wbOY").getSheets()[0].getRange(1, 1).setValue(0);
+    Logger.log("DELETING PROJECT SIGNUPS RESPONSES...");
+  }
   //So, there is a chance that a person could open the current projects signup form,
   //then not submit a response with it for like 5 days.
   //In this case, the project clearly would no longer be available to be signed up for
   //So we have to check to make sure that the project signups for that project are still active
   //And if they are not, tell the user that.
   //This functionality will be done in the for loop under the function call: checkValid() 
-  
-  //Make the signup Time when the responses were first checked.
-  var now = new Date();
-  
-  for (var n=0;n<formResponses.length;n++){
+  Logger.log("Form Responses Number: " + formResponses.length);
+
+  //Begin at the index immediately above the most recently handled response
+  for (var n=formResponsesNumber;n<maxIndex;n++){
     
     // Get an array of the responses to each item
     var itemResponses = formResponses[n].getItemResponses();
@@ -40,20 +54,24 @@ function checkProjectSignupResponses(e){
         memberEmail = itemResponses[i].getResponse(); 
       }
       else if (itemResponses[i].getItem().getType() == FormApp.ItemType.CHECKBOX) {
-        var headerIndex = (itemResponses[i].getItem().getIndex()-3)/2;
+        var myInfo = getProjectInfo(itemResponses[i].getItem().getIndex(), allFormItems);
+        var formHeaderItem = myInfo[0];
+        var whichShift = myInfo[1];
         Logger.log("i: " + i);
-        Logger.log("FormItems Length: " + formItems.length);
-        var locationLineEndIndex = formItems[headerIndex].getHelpText().indexOf("\n");
-        projectName = formItems[headerIndex].getTitle() + " - " + formItems[headerIndex].getHelpText().substr(0, locationLineEndIndex);
+        var locationLineEndIndex = formHeaderItem.getHelpText().indexOf("\n");
+        projectName = formHeaderItem.getTitle() + " - " + formHeaderItem.getHelpText().substr(0, locationLineEndIndex);
         Logger.log("projectName: " + projectName);
+        Logger.log("WhichShift: " + whichShift);
         
         attending = itemResponses[i].getResponse().toString().contains("Attending");
         needsRide = itemResponses[i].getResponse().toString().contains("Need Ride");
         if (attending){
           if (checkValid(projectName)){
-            signupSheet = getSignupSheet(projectName);
+            signupSheet = getSignupSheet(projectName, whichShift);
             
-            //I have been having issues where multiple people signing up at the same time will sometimes cause one entry to be looked over. So, I doing a loop which checks for this. 
+            //I used to have issues where multiple people signing up at the same time will sometimes cause one entry to be looked over. So, I do a loop which checks for this. 
+            //Recently, I have updated the script and it hasn't been an issue, but it doesn't hurt, so just in case I keep it in...
+            //All it does is double check 5 seconds after it added the entry to make sure it's actually there.
             var entryNotAccepted = true;
             while (entryNotAccepted){
               var numEntries = signupSheet.getDataRange().getHeight();
@@ -64,6 +82,7 @@ function checkProjectSignupResponses(e){
               else if (signupSheet.getRange(1,4).getValue() == "Need Ride") {
                 signupSheet.getRange(numEntries+1,4).setValue("No");
               }
+              //Sleep for a bit to update this
               Utilities.sleep(5000);
               //If the entry was added correctly, then exit the loop, otherwise, keep trying.            
               if ((signupSheet.getRange(numEntries+1,1).getValue() == memberName)  &&
@@ -74,7 +93,7 @@ function checkProjectSignupResponses(e){
                 } 
             }
             
-            projectList.push(projectName);       
+            projectList.push(signupSheet.getSheetName());       
           }
           else {
             var MessageHTML = "Dear " + memberName + ",<br><br>";
@@ -106,28 +125,22 @@ function checkProjectSignupResponses(e){
 
 String.prototype.contains = function(it) { return this.indexOf(it) != -1; };
 
-function getSignupSheet(projectName){
+function getSignupSheet(projectName, whichShift){
   //This project name should be guaranteed to match the name of one of the SHEETS (not spreadsheets) that exists on the drive
   //So we open every current spreadsheet, and sort through each sheet. If the sheet name matches this filename, then we return that.
   
-  var potentialFiles = DriveApp.getFilesByType("application/vnd.google-apps.spreadsheet");
+  //var potentialFiles = DriveApp.getFilesByType("application/vnd.google-apps.spreadsheet");
+  var potentialFiles = DriveApp.getFilesByName(projectName);
   var myFile;
   var mySpreadsheet;
   var mySheets;
-  
-  Logger.log(potentialFiles.hasNext());
   while (potentialFiles.hasNext()){
+    Logger.log("Potential File Found");
     myFile = potentialFiles.next();
     mySpreadsheet = SpreadsheetApp.open(myFile);
-    mySheets = mySpreadsheet.getSheets();
-    for (var i=0;i<mySheets.length;i++){
-      Logger.log("spreadsheet Name: " + mySheets[i].getName());
-      Logger.log("projectName: " + projectName);
-      if (mySheets[i].getName() == projectName){
-        return mySheets[i];  
-      }
+    if (myFile.getMimeType() == MimeType.GOOGLE_SHEETS){
+      return mySpreadsheet.getSheets()[whichShift-1];  
     }
-    
   }
   Logger.log("Signup Form: Function getSignupSheet: Spreadsheet not found");
   return null;
@@ -142,19 +155,12 @@ function checkValid(projectName) {
   var numParameters = dataRange.getWidth();
   
   var nameIndex;
-  var numShiftsIndex;
-  var shift1StartIndex;
   var projectStartIndex;
   for (var i=0;i<numParameters;i++){
     if (currentProjectsSheet.getRange(1, i+1).getValue() == "Event/Project Name"){
        nameIndex = i+1;  
     }
-    else if (currentProjectsSheet.getRange(1, i+1).getValue() == "Number of Shifts"){
-       numShiftsIndex = i+1;  
-    }
-    else if (currentProjectsSheet.getRange(1, i+1).getValue() == "Shift 1 of 2 Start Time"){
-       shift1StartIndex = i+1;  
-    }
+
     else if (currentProjectsSheet.getRange(1, i+1).getValue() == "Project Start Date/Time"){
       projectStartIndex = i+1;
     }
@@ -177,34 +183,16 @@ function checkValid(projectName) {
   var numShifts;
   var checkName; // Array holding the list of possible names that this project could go under.
   for (var j=0;j<numProjects;j++){
-    numShifts = parseInt(currentProjectsSheet.getRange(j+2, numShiftsIndex).getValue(), 10);
     thisProjectName = currentProjectsSheet.getRange(j+2, nameIndex).getValue()
     
-    if (numShifts > 1){
-      //WE found the index for shift 1 of 2 start index. Now if there are 3 or 4 shifts, this offset will
-      //give the index of shift 1 of 3, or shift 1 of 4.
-      var offset;
-      if (numShifts == 2) { offset = 0;}
-      else if (numShifts == 3) { offset = 4;}
-      else if (numShifts == 4) { offset = 10;}
-      
-      for (var n=0; n<numShifts;n++){
-        shiftStartDate = currentProjectsSheet.getRange(j+2, shift1StartIndex+(2*n)+offset).getValue();
-        shiftEndDate   = currentProjectsSheet.getRange(j+2, shift1StartIndex+(2*n)+1+offset).getValue();
-        checkName = thisProjectName + " - " + DatetoWords(shiftStartDate,shiftEndDate)+ " - Shift " + (n+1).toString();
-        if (checkName == projectName){
-          return true;
-        }
-      }
+    
+    shiftStartDate = currentProjectsSheet.getRange(j+2, projectStartIndex).getValue();
+    shiftEndDate = currentProjectsSheet.getRange(j+2, projectStartIndex+1).getValue();
+    checkName = thisProjectName + " - " + DatetoWords(shiftStartDate, shiftEndDate);
+    if (checkName == projectName){
+      return true;
     }
-    else {
-      shiftStartDate = currentProjectsSheet.getRange(j+2, projectStartIndex).getValue();
-      shiftEndDate = currentProjectsSheet.getRange(j+2, projectStartIndex+1).getValue();
-      checkName = thisProjectName + " - " + DatetoWords(shiftStartDate, shiftEndDate);
-      if (checkName == projectName){
-        return true;
-      }
-    }
+    
   }
   return false;
  
@@ -238,14 +226,20 @@ function DatetoWords(startDate, endDate){
   var dayWord2 = getDayFromInt(endDate.getDay());
   
   //Check for am vs pm
-  if (HH > 12){
+  if (HH > 11){
     hourSet = "PM";
     HH -= 12; 
   }
+  if (HH == 0){
+    HH = 12; 
+  }
   HH = HH.toString()
-  if (HH2 > 12){
+  if (HH2 > 11){
     hourSet2 = "PM";
     HH2 -= 12; 
+  }
+  if (HH2 == 0){
+    HH2 = 12; 
   }
   HH2 = HH2.toString();
   
@@ -358,5 +352,15 @@ function getDayFromInt(dayInt){
       break;
   }
   return dayWord;
+}
+
+function getProjectInfo(i, itemList){
+  for (var k=i-1; k>=0; k--){
+    if (itemList[k].getType() == FormApp.ItemType.SECTION_HEADER){
+      return [itemList[k], i-k];  
+    }
+  }
+  Logger.log("ERROR: ITEM HEADER COULD NOT BE FOUND IN FUNCTION: getHeaderIndex");
+  return null;
 }
 
