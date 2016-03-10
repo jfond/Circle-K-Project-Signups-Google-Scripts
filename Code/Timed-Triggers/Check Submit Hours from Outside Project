@@ -1,0 +1,331 @@
+function checkSubmitHoursfromOutsideProject() {
+  
+  
+  
+  
+  var documentHoursForm = FormApp.openById("1v5Rhlc3h9HS8Q_dk3k2HRfMLwSqPWxKJrCZCsb2XMYc");
+ 
+  var formResponsesNumber = SpreadsheetApp.openById("12RLuJRu-uQ0IOGkZYJUC9PrD1Jza2WVVgqKhh94wbOY").getSheets()[0].getRange(4, 1).getValue(); //Yeah its hard coded/magic numbers, blah blah.. GET OVER IT
+  Logger.log("Checking Project Creation Responses...");  
+  
+  //The submission we want is the one that was just submitted (last entry as submitted most recently)
+  var formResponses = documentHoursForm.getResponses();
+  var NUM_RESPONSES_PER_RUN = 2;
+  if ((formResponses.length) > formResponsesNumber){
+    var maxIndex = Math.min((formResponses.length), formResponsesNumber+ NUM_RESPONSES_PER_RUN);
+    SpreadsheetApp.openById("12RLuJRu-uQ0IOGkZYJUC9PrD1Jza2WVVgqKhh94wbOY").getSheets()[0].getRange(4, 1).setValue(maxIndex);
+  }
+  //Make the signup Time when the responses were first checked.
+  var now = new Date();
+  Logger.log("Now: " + now.getHours());
+  if ((now.getHours() == 4) && (now.getMinutes() >14) && (now.getMinutes() < 17)){
+    documentHoursForm.deleteAllResponses(); 
+    SpreadsheetApp.openById("12RLuJRu-uQ0IOGkZYJUC9PrD1Jza2WVVgqKhh94wbOY").getSheets()[0].getRange(4, 1).setValue(0);
+    Logger.log("DELETING ACTIVITY CREATION RESPONSES...");
+  }
+  
+ 
+  var itemResponses;
+  
+  if (maxIndex > formResponsesNumber){
+    var ArchiveSheet = SpreadsheetApp.openById("1kA1FY54DlwSf87m1BZ9b4jEI7qa1-yHoLjgjnhRxeUM").getSheets()[0];
+    var aDataRange = ArchiveSheet.getDataRange();
+    var aNumProjects = aDataRange.getHeight()-1;
+    //Put this placeholder in here so if another project is going through this code, it will grab the slot below and not overwrite this row.
+    ArchiveSheet.getRange(aNumProjects + 2, 1).setValue("ERROR: PLACEHOLDER NOT PROPERLY REMOVED");    
+  }
+  
+  for (var k=formResponsesNumber;k<maxIndex;k++){
+    itemResponses = formResponses[k].getItemResponses();
+    
+    //This is a temporary measure to allow me to keep an eye on things:
+    var tempStringMessage = "";
+    for (var pl=0;pl<itemResponses.length;pl++){
+      tempStringMessage += itemResponses[pl].getResponse() + "\n";
+    }
+    GmailApp.sendEmail("uacirclekprojectsignups@gmail.com", "RECORD DOCUMENT HOURS FORM SUBMITTED", "", {htmlBody: tempStringMessage});    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    var projectName = "";
+    var projectDescription = "";
+    var projectStartDate = "";
+    var projectEndDate = "";
+    var projectLocation = "";
+    var now = new Date();
+    var projectChair = "";
+    var projectChairEmail = "";
+    
+    for (var l=0;l<itemResponses.length;l++){
+      if (itemResponses[l].getItem().getTitle() == "Service project name"){ 
+        projectName = itemResponses[l].getResponse();
+      }
+      else if (itemResponses[l].getItem().getTitle() == "Service project description"){
+        projectDescription = itemResponses[l].getResponse();
+      } 
+      else if (itemResponses[l].getItem().getTitle() == "Project Start Date/Time"){
+        projectStartDate = itemResponses[l].getResponse(); 
+      }
+      else if (itemResponses[l].getItem().getTitle() == "Project End Date/Time"){
+        projectEndDate = itemResponses[l].getResponse(); 
+      }
+      else if (itemResponses[l].getItem().getTitle() == "Project Location"){
+        projectLocation = itemResponses[l].getResponse();
+      }
+      else if (itemResponses[l].getItem().getTitle() == "Project chairperson full name"){
+        projectChair = itemResponses[l].getResponse();
+      }
+      else if (itemResponses[l].getItem().getTitle() == "Project Chairperson Email Address"){
+        projectChairEmail = itemResponses[l].getResponse(); 
+      }
+    }
+    ArchiveSheet.getRange(aNumProjects+2, 1, 1, numParameters-1).setValues(unsubmittedHoursSheet.getRange(j+2, 1, 1, numParameters-1).getValues());
+
+    
+    
+    
+    
+    
+  }
+  
+  
+
+
+  //Loop through all of the projects in the "Unsubmitted volunteer hours" Spreadsheet, and find the one corresponding to the 
+  // hours that were just submitted and get information from it. 
+  for (var j=0;j<numProjects;j++){
+    //Since the URL's may not be exactly the same due to accessability reasons, need to match by ID.
+    if (documentingFormID == unsubmittedHoursSheet.getRange(j+2, ushFormUrlIndex).getValue()){
+      projectName = unsubmittedHoursSheet.getRange(j+2, projectNameIndex).getValue();
+      projectStartDate = unsubmittedHoursSheet.getRange(j+2, projectstartDateIndex).getValue()
+      projectEndDate = unsubmittedHoursSheet.getRange(j+2, projectendDateIndex).getValue();
+      projectChair = unsubmittedHoursSheet.getRange(j+2, projectChairIndex).getValue();
+      projectChairEmail = unsubmittedHoursSheet.getRange(j+2, projectChairEmailIndex).getValue();    
+      ArchiveSheet.getRange(aNumProjects+2, 1, 1, numParameters-1).setValues(unsubmittedHoursSheet.getRange(j+2, 1, 1, numParameters-1).getValues());
+      unsubmittedHoursSheet.getRange(j+2, 1, 1, numParameters).clearContent();
+      for (var n=j;n<numProjects+1;n++){
+        unsubmittedHoursSheet.getRange(n+2, 1, 1, numParameters).setValues(unsubmittedHoursSheet.getRange(n+3, 1,1,numParameters).getValues())      
+      }
+      j=numProjects; //End the loop
+    }
+  }
+        
+        
+  
+  var rosterFile = DriveApp.getFilesByName(projectName + " - " + DatetoWords(projectStartDate, projectEndDate)).next();
+  var rosterSheet = SpreadsheetApp.open(rosterFile);
+  //Now loop through the archive sheet and find the cell for Shift 1 roster.
+  var listOfVolunteersIndex;
+  for (var c=0;c<ArchiveSheet.getDataRange().getWidth();c++){
+    if (ArchiveSheet.getRange(1, c+1).getValue() == "List of Volunteers"){
+      listOfVolunteersIndex = c+1; 
+    }
+  }
+  
+  
+  var volunteerNameList = []; //This is so we can find duplicates, and remove them appropiately.
+  var volunteerEmailList = [];
+  var volunteerHourList = [];
+  
+  //Now we need to access the two spreadsheets and update them appropiately:
+  //1. The record service hours spreadsheet
+  //2. The total service hours log
+  
+  //for the record individual service events log, we iterate through every item on the list and update it
+  var recordServiceEventSheet = SpreadsheetApp.openById("1ZMzvNYGKlzKRV05e1_q0GFInE1WT53sHQerSdnAsW8A").getSheets()[0];
+  
+  
+  var numEntries = recordServiceEventSheet.getDataRange().getHeight()-1;
+  
+  var personsEmail;
+  var personsName;
+  var hoursServed;
+  
+  for (var k=0;k<itemResponses.length;k++){
+    if (((itemResponses[k].getItem().getTitle() == "First and Last Name") && !(itemResponses[k] === undefined || itemResponses[k] === null) && (itemResponses[k].getResponse().length > 0)) &&
+      ((itemResponses[k+1].getItem().getTitle() == "Email Address")  && !(itemResponses[k+1] === undefined || itemResponses[k+1] === null) && (itemResponses[k+1].getItem().getIndex() == itemResponses[k].getItem().getIndex() + 1) && (itemResponses[k+1].getResponse().length > 0)) &&   
+        ((itemResponses[k+2].getItem().getTitle() == "Number of Hours")  && !(itemResponses[k+2] === undefined || itemResponses[k+2] === null) && (itemResponses[k+2].getItem().getIndex() == itemResponses[k].getItem().getIndex() + 2))){    
+          
+          volunteerNameList.push(itemResponses[k].getResponse());
+          volunteerEmailList.push(itemResponses[k+1].getResponse());
+          volunteerHourList.push(itemResponses[k+2].getResponse());
+          
+          k+=2;
+        }   
+    else if ((parseFloat(itemResponses[k].getResponse()) > 0) && (itemResponses[k].getItem().getTitle() != "Number of Hours") && (itemResponses[k].getItem().getType() == FormApp.ItemType.TEXT)){
+      var NameandEmail = itemResponses[k].getItem().getTitle();
+      var parenthesesIndex = NameandEmail.lastIndexOf("("); //Will actually cause an error if the email contains a "("
+      personsName = NameandEmail.substr(0,parenthesesIndex-1);//Substr includes the character, and we want to also remove the space and the ( from the name string.         
+      personsEmail = NameandEmail.substr(parenthesesIndex+1,NameandEmail.length-personsName.length-3);
+      hoursServed = itemResponses[k].getResponse();
+      volunteerNameList.push(personsName);
+      volunteerEmailList.push(personsEmail);
+      volunteerHourList.push(hoursServed); 
+    }
+  }
+  
+  //Do a loop to look for duplicates of names. If two people have the same name and there is no email to distinguish them, then delete the entry with the fewer hours.
+  //If two entries have the same name but different emails, do nothing.
+  //Generalize this to any number of duplicated names and unique emails.
+  //Also, make a list of all of the removed entries and send them to the project chairperson.
+  //removedIndices = [];
+  
+  var length = volunteerNameList.length;
+  for (var d=0;d<length-1;d++){
+    for (var e=d+1;e<length;e++){
+      if ((volunteerNameList[d] == volunteerNameList[e]) && (volunteerEmailList[d] == volunteerEmailList[e])){
+        var thisIndex = e;
+        if (volunteerHourList[d] > volunteerHourList[e]){
+          thisIndex = d; 
+          e = length;
+        }
+        volunteerNameList.splice(thisIndex,1);
+        volunteerEmailList.splice(thisIndex,1);
+        volunteerHourList.splice(thisIndex,1);
+        length-=1;          
+      }
+    }
+  }
+  
+  
+  Logger.log("Names: " + volunteerNameList);
+  Logger.log("Emails: " + volunteerEmailList);
+  Logger.log("Hours: " + volunteerHourList);
+  //Now for the title service hours log, we have to iterate through every item on the list, and also check if that person
+  // is already in the list. If they are, just add the new hours to their current total. If they are not, make a new entry for them.
+  
+  var totalServiceLogSheet = SpreadsheetApp.openById("1N6h8KWuvZj2p8AiRAUDUyAVW1J3K0f-UpWvFiqjjVrg").getSheets()[0];
+  
+  var memberEmailArray = [];
+  var memberNameArray = [];
+  var myEmail;
+  var myName;
+  //Sort through the current total hours log and make an array for easy filtering;
+  //Note that the "0th" item in this array, would correspond to spreadsheet row number 2, hence the nameIndex+2 in the later for loop
+  for (var m=0;m<totalServiceLogSheet.getDataRange().getHeight()-1;m++){
+    myName = totalServiceLogSheet.getRange(m+2, 1).getValue();
+    if (!(myName === undefined || myName === null)){
+      memberNameArray.push(myName.toLowerCase());
+    }
+    else {
+      memberNameArray.push("NONAME");
+    }
+    myEmail = totalServiceLogSheet.getRange(m+2, 2).getValue();
+    if (!(myEmail === undefined || myEmail === null)){
+      memberEmailArray.push(myEmail.toLowerCase());
+    }
+    else {
+      memberEmailArray.push("NOEMAIL");
+    }
+  }
+  
+  
+  var profileIndex = -1;
+  
+  var emailIndex;
+  var nameIndex;
+  
+  var searchEmailArray;
+  var searchNameArray;
+  var volunteerNameString = "";  //Array for people in each shift.
+  var totalNumberOfHours = 0
+  
+  for (var k=0;k<volunteerNameList.length;k++){
+    Logger.log("This Name: " + volunteerNameList[k]);
+    Logger.log("This Email: " + volunteerEmailList[k]);
+    Logger.log("This Hour: " + volunteerHourList[k]);
+    
+    
+    volunteerNameString += (volunteerNameList[k] + ", ");
+    recordServiceEventSheet.getRange(numEntries+2+k, 1,1,8).setValues([[volunteerNameList[k], volunteerEmailList[k], volunteerHourList[k], projectName, projectStartDate, now, projectChair, projectChairEmail]])  
+    totalNumberOfHours += parseInt(volunteerHourList[k]); //Total hours so far counted for this project, that is
+    
+    profileIndex = -1;  // -1 Means no match. A positive ineger means match found and the integer is the index.
+    
+    Logger.log("Member Email Array: " + memberEmailArray);
+    Logger.log("Member name Array: " + memberNameArray);
+    searchEmailArray = memberEmailArray.slice(0);
+    emailIndex = null;
+    while ((emailIndex != -1) && (profileIndex == -1)){
+      nameIndex = null;
+      searchNameArray = memberNameArray.slice(0);
+      emailIndex = searchEmailArray.lastIndexOf(volunteerEmailList[k].toLowerCase());
+      while ((emailIndex != -1) && (nameIndex != -1) && (profileIndex == -1)){
+        nameIndex  = searchNameArray.lastIndexOf(volunteerNameList[k].toLowerCase());        
+        if (nameIndex == emailIndex){
+          profileIndex = nameIndex;
+        }
+        else {
+          searchNameArray.splice(nameIndex,1); 
+          Logger.log("k: " + k);
+          Logger.log("Splicing NameArray...");
+        }
+      }
+      searchEmailArray.splice(emailIndex,1);
+      Logger.log("k: " + k);
+      Logger.log("Splicing EmailArray...");
+    }
+    
+    
+    if (profileIndex == -1){
+      profileIndex = totalServiceLogSheet.getDataRange().getHeight()+1;
+      totalServiceLogSheet.getRange(profileIndex, 1,1,3).setValues([[volunteerNameList[k], volunteerEmailList[k], volunteerHourList[k]]]);
+    }
+    else {
+      Logger.log("Profile Index: " + profileIndex);
+      totalServiceLogSheet.getRange(profileIndex+2, 3).setValue(parseFloat(totalServiceLogSheet.getRange(profileIndex+2, 3).getValue()) + parseFloat(volunteerHourList[k]));
+    }
+  }
+  if (volunteerNameString.length >=2){
+    volunteerNameString = volunteerNameString.substr(0,volunteerNameString.length-2);
+  }
+  else {
+    volunteerNameString = "None" 
+  }
+        
+      
+  
+  ArchiveSheet.getRange(aNumProjects+2, listOfVolunteersIndex).setValue(volunteerNameString);
+  ArchiveSheet.getRange(aNumProjects+2, listOfVolunteersIndex+1).setValue(totalNumberOfHours);
+  
+  //Now lets sort all the data so that on the statistics page, it will look organized
+  //First select the range except the top row so taht we can sort data.
+  
+  var mdr = ArchiveSheet.getDataRange();
+  var asH = mdr.getHeight()-1;
+  var asW = mdr.getWidth();
+  
+  ArchiveSheet.getRange(2,1,asH,asW).sort([{column: 34, ascending: false}, {column: 6, ascending: true}, {column: 3, ascending: true}]);
+  
+  mdr = totalServiceLogSheet.getDataRange();
+  var tslsH = mdr.getHeight();
+  var tslsW = mdr.getWidth();
+  
+  totalServiceLogSheet.getRange(2,1,tslsH,tslsW).sort([{column: 3, ascending: false}, {column: 1, ascending: true}])
+  
+  //Delete the form now that it has been submitted.
+  //Honestly here I should create some kind of error messaging system where it emails someone if there are multiple or 0 instances
+  //Of this particular file. But I am not going to do that now.
+  
+  //Delete the roster sheet form. 
+  rosterFile.setTrashed(true);
+  //The documenting form will try to create a spreadsheet to hold the submitted data. We shall delete that.
+  //DriveApp.getFilesByName(SpreadsheetApp.openById(documentingForm.getDestinationId()).getName()).next().setTrashed(true);
+  //Apparently the above doesn't happen in the general case, but it has caused issues for me before.
+  //And now delete the documenting form.
+  DriveApp.getFilesByName(myDocumentHoursForm.getTitle()).next().setTrashed(true);
+  GmailApp.sendEmail("uacirclekprojectsignups@gmail.com", "Log", Logger.getLog());
+
+  
+}
+
+
+
