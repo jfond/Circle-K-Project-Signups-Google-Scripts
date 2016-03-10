@@ -1,0 +1,52 @@
+function updateFigures() {
+  var ArchiveSheet = SpreadsheetApp.openById("1kA1FY54DlwSf87m1BZ9b4jEI7qa1-yHoLjgjnhRxeUM").getSheets()[0];
+  var ServiceHoursStatisticsSheet = SpreadsheetApp.openById("1-yuIMTX6HMnMfTQSk2N8Nvl_wts_U0w848W428-iPeg").getSheets()[1];
+  
+  var ASDataRange = ArchiveSheet.getDataRange();
+  var ASHeight = ASDataRange.getHeight();
+  var ASWidth = ASDataRange.getWidth();
+  
+  var SHSSDataRange = ServiceHoursStatisticsSheet.getDataRange();
+  var SHSSWidth = SHSSDataRange.getWidth();
+  
+  
+  //Find the indices of the project names and the service hours for all the projects that have been recorded.
+  var ASProjectNameIndex;
+  var ASStartDateIndex;
+  var ASTotalHoursIndex;
+  for (var n=0;n<ASWidth;n++){
+    if (ArchiveSheet.getRange(1, n+1).getValue() == "Total Number of Hours"){
+      ASTotalHoursIndex = n+1;
+    }
+    else if (ArchiveSheet.getRange(1, n+1).getValue() == "Project Start Date/Time"){
+      ASStartDateIndex = n+1;
+    }
+    else if (ArchiveSheet.getRange(1, n+1).getValue() == "Event/Project Name"){
+      ASProjectNameIndex = n+1;
+    }
+  }
+  
+  //Now we do the same for the SSHS sheet (note its sheet #2).
+  
+  var SHSSProjectNameIndex;
+  var SHSStartDateIndex;
+  var SHSSTotalHoursIndex;
+  for (var n=0;n<SHSSWidth;n++){
+    if (ServiceHoursStatisticsSheet.getRange(1, n+1).getValue() == "Club Total Hours"){
+      SHSSTotalHoursIndex = n+1;
+    }
+    else if (ServiceHoursStatisticsSheet.getRange(1, n+1).getValue() == "Project Start Date"){
+      SHSStartDateIndex = n+1;
+    }
+    else if (ServiceHoursStatisticsSheet.getRange(1, n+1).getValue() == "Project Name"){
+      SHSSProjectNameIndex = n+1;
+    }
+  }
+  
+  //Now dump all the information from sheet AS into sheet SHSS.
+  ServiceHoursStatisticsSheet.getRange(3,SHSSTotalHoursIndex,ASHeight-1,1).setValues(ArchiveSheet.getRange(2, ASTotalHoursIndex,ASHeight-1,1).getValues());
+  ServiceHoursStatisticsSheet.getRange(3,SHSStartDateIndex,ASHeight-1,1).setValues(ArchiveSheet.getRange(2, ASStartDateIndex,ASHeight-1,1).getValues());  
+  ServiceHoursStatisticsSheet.getRange(3,SHSSProjectNameIndex,ASHeight-1,1).setValues(ArchiveSheet.getRange(2, ASProjectNameIndex,ASHeight-1,1).getValues());
+  
+  
+}
